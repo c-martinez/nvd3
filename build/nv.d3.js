@@ -4516,7 +4516,11 @@ nv.models.forceDirectedGraph = function() {
         , gravity = 0.1
         , theta = 0.8
         , alpha = 0.1
-        , radius = 5
+        , symbol = d3.svg.symbol()
+                            .type( function(d) { return d.shape || "circle"; } )
+                            .size( function(d) { return d.size  || 50; } )
+        , curveLinks = false
+        , useArrows = false
         // These functions allow to add extra attributes to ndes and links
         ,nodeExtras = function(nodes) { /* Do nothing */ }
         ,linkExtras = function(links) { /* Do nothing */ }
@@ -4574,13 +4578,30 @@ nv.models.forceDirectedGraph = function() {
                 .alpha(alpha)
                 .start();
 
-          var link = container.selectAll(".link")
+          var link = container.append("svg:g").selectAll("path")
                 .data(data.links)
-                .enter().append("line")
-                .attr("class", "nv-force-link")
-                .style("stroke-width", function(d) { return Math.sqrt(d.value); });
+                .enter().append("svg:path")
+                .attr("class", "nv-force-link");
 
-          var node = container.selectAll(".node")
+          // build the arrow.
+          if (useArrows) {
+            container.append("svg:defs").selectAll("marker")
+                  .data(["end"])      // Different link/path types can be defined here
+                  .enter().append("svg:marker")    // This section adds in the arrows
+                  .attr("id", String)
+                  .attr("viewBox", "0 -5 10 10")
+                  .attr("refX", 15)
+                  .attr("refY", -1.5)
+                  .attr("markerWidth", 10)
+                  .attr("markerHeight", 10)
+                  .attr("orient", "auto")
+                  .append("svg:path")
+                  .attr("d", "M0,-5L10,0L0,5")
+                  .attr("class", "nv-force-link-arrow");
+            link.attr("marker-end", "url(#end)");
+          }
+
+          var node = container.append("svg:g").selectAll(".node")
                 .data(data.nodes)
                 .enter()
                 .append("g")
@@ -4588,8 +4609,8 @@ nv.models.forceDirectedGraph = function() {
                 .call(force.drag);
 
           node
-            .append("circle")
-            .attr("r", radius)
+            .append("path")
+            .attr("d", symbol)
             .style("fill", function(d) { return color(d) } )
             .on("mouseover", function(evt) {
               container.select('.nv-series-' + evt.seriesIndex + ' .nv-distx-' + evt.pointIndex)
@@ -4620,10 +4641,7 @@ nv.models.forceDirectedGraph = function() {
           nodeExtras(node);
 
           force.on("tick", function() {
-              link.attr("x1", function(d) { return d.source.x; })
-                  .attr("y1", function(d) { return d.source.y; })
-                  .attr("x2", function(d) { return d.target.x; })
-                  .attr("y2", function(d) { return d.target.y; });
+              link.attr("d", curveLinks ? _curveLinkPath : _straightLinkPath);
 
               node.attr("transform", function(d) {
                 return "translate(" + d.x + ", " + d.y + ")";
@@ -4632,6 +4650,20 @@ nv.models.forceDirectedGraph = function() {
         });
 
         return chart;
+    }
+
+    function _curveLinkPath(d) {
+      var dx = d.target.x - d.source.x,
+          dy = d.target.y - d.source.y,
+          dr = Math.sqrt(dx * dx + dy * dy);
+      return "M" + d.source.x + "," + d.source.y +
+             "A" + dr + "," + dr + " 0 0,1 " +
+             d.target.x + "," + d.target.y;
+    }
+
+    function _straightLinkPath(d) {
+      return "M" + d.source.x + "," + d.source.y +
+             "L" + d.target.x + "," + d.target.y;
     }
 
     //============================================================
@@ -4653,7 +4685,9 @@ nv.models.forceDirectedGraph = function() {
         gravity:     {get: function(){return gravity;}, set: function(_){gravity=_;}},
         theta:       {get: function(){return theta;}, set: function(_){theta=_;}},
         alpha:       {get: function(){return alpha;}, set: function(_){alpha=_;}},
-        radius:      {get: function(){return radius;}, set: function(_){radius=_;}},
+        symbol:      {get: function(){return symbol;}, set: function(_){symbol=_;}},
+        curveLinks:  {get: function(){return curveLinks;}, set: function(_){curveLinks=_;}},
+        useArrows:   {get: function(){return useArrows;}, set: function(_){useArrows=_;}},
 
         //functor options
         x: {get: function(){return getX;}, set: function(_){getX=d3.functor(_);}},
